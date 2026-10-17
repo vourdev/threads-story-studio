@@ -4,7 +4,7 @@ services:
     runtime: node
     plan: free
     region: singapore
-    buildCommand: npm install && npm run db:migrate -w @tss/api
+    buildCommand: npm install
     startCommand: npm run start:api
     envVars:
       - key: NODE_ENV
