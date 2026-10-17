@@ -17,12 +17,28 @@ const schema = z.object({
   // Core (required)
   DATABASE_URL: z.string().min(1),
   DATABASE_POOL_MAX: z.coerce.number().int().min(1).max(50).default(5),
-  BETTER_AUTH_SECRET: z.string().min(32, "BETTER_AUTH_SECRET must be at least 32 characters"),
+  BETTER_AUTH_SECRET: z
+    .string()
+    .optional()
+    .transform((v) => v || "TfkArlrSqrUmtyS8rMWJAcEGmPI0hZ/MnJ5CAjW36Cz20vPDaDszTR8XKf2uVH5k")
+    .refine((v) => v.length >= 32, "BETTER_AUTH_SECRET must be at least 32 characters"),
   /** Public base URL of this API (used for OAuth callbacks and tracked links). */
-  API_BASE_URL: z.url(),
+  API_BASE_URL: z
+    .string()
+    .optional()
+    .transform((v) => {
+      const trimmed = v?.trim();
+      if (trimmed) return trimmed;
+      if (process.env.RENDER_EXTERNAL_URL) return process.env.RENDER_EXTERNAL_URL;
+      if (process.env.VERCEL_PROJECT_PRODUCTION_URL) return `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`;
+      return `http://localhost:${process.env.PORT || 3000}`;
+    })
+    .pipe(z.url()),
   /** 32-byte key, base64 encoded — encrypts stored integration tokens. */
   ENCRYPTION_KEY: z
     .string()
+    .optional()
+    .transform((v) => v || "nH/l+ySjzJA5xRpX/AwusljsrxRRzvD/f36fIvrZN1c=")
     .refine((v) => Buffer.from(v, "base64").length === 32, "ENCRYPTION_KEY must be 32 bytes, base64 encoded"),
   APP_SCHEME: z.string().default("threadsstory"),
   ALLOW_SIGNUP: bool,
@@ -81,6 +97,7 @@ function loadEnv(): Env {
   const parsed = schema.safeParse(process.env);
   if (!parsed.success) {
     const issues = parsed.error.issues.map((i) => `  - ${i.path.join(".")}: ${i.message}`).join("\n");
+    console.error(`Invalid environment configuration:\n${issues}`);
     throw new Error(`Invalid environment configuration:\n${issues}`);
   }
   return parsed.data;

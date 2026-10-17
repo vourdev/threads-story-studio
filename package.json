@@ -17,6 +17,9 @@
     "typecheck": "npm run typecheck --workspaces --if-present",
     "test": "npm run test --workspaces --if-present"
   },
+  "dependencies": {
+    "tsx": "4.23.15"
+  },
   "devDependencies": {
     "@biomejs/biome": "^2.5.15"
   },
