@@ -94,16 +94,17 @@ export function gql(value: unknown): string {
   throw new Error("Unsupported GraphQL value");
 }
 
-export async function listOrganizations(fetchImpl?: typeof fetch) {
+export async function listOrganizations(apiKey?: string, fetchImpl?: typeof fetch) {
   const data = await bufferGraphQL<{ account: { organizations: { id: string; name: string }[] } }>(
     "query { account { organizations { id name } } }",
     {},
     fetchImpl,
+    apiKey,
   );
   return data.account.organizations;
 }
 
-export async function listChannels(organizationId: string, fetchImpl?: typeof fetch) {
+export async function listChannels(organizationId: string, apiKey?: string, fetchImpl?: typeof fetch) {
   const data = await bufferGraphQL<{
     channels: {
       id: string;
@@ -117,6 +118,7 @@ export async function listChannels(organizationId: string, fetchImpl?: typeof fe
     `query { channels(input: ${gql({ organizationId })}) { id name displayName service avatar isQueuePaused } }`,
     {},
     fetchImpl,
+    apiKey,
   );
   return data.channels;
 }
@@ -158,10 +160,11 @@ export class BufferProvider implements PublishingProvider {
     if (!channelId || !organizationId) {
       throw new PublishError("auth", "Choose a Buffer Threads channel in Settings › Publishing.");
     }
+    const apiKey = ctx.account.accessToken ?? env.BUFFER_API_KEY;
 
     if (ctx.reconcile) {
       // A previous submit may have succeeded without us seeing the response — look for it first.
-      const existing = await this.findRecentPost(organizationId, channelId, ctx.posts[0]?.text ?? "");
+      const existing = await this.findRecentPost(organizationId, channelId, ctx.posts[0]?.text ?? "", apiKey);
       if (existing) {
         return { type: "done", status: "submitted", externalPostIds: [existing.id] };
       }
@@ -187,6 +190,7 @@ export class BufferProvider implements PublishingProvider {
       }`,
       {},
       this.fetchImpl,
+      apiKey,
     );
     const result = data.createPost;
     if (!("post" in result) || !result.post) {
@@ -201,13 +205,14 @@ export class BufferProvider implements PublishingProvider {
     };
   }
 
-  private async findRecentPost(organizationId: string, channelId: string, text: string) {
+  private async findRecentPost(organizationId: string, channelId: string, text: string, apiKey?: string) {
     const data = await bufferGraphQL<{ posts: { edges: { node: { id: string; text: string; status?: string } }[] } }>(
       `query {
         posts(first: 20, input: ${gql({ organizationId, filter: { channelIds: [channelId] }, sort: [{ field: new GqlEnum("createdAt"), direction: new GqlEnum("desc") }] })}) { edges { node { id text status } } }
       }`,
       {},
       this.fetchImpl,
+      apiKey,
     );
     return data.posts.edges.map((e) => e.node).find((n) => n.text.trim() === text.trim()) ?? null;
   }
@@ -217,12 +222,14 @@ export class BufferProvider implements PublishingProvider {
     const channelId = ctx.account.meta.channelId;
     const postId = ctx.externalPostIds[0];
     if (!organizationId || !channelId || !postId) return { status: "failed", message: "Missing Buffer post reference" };
+    const apiKey = ctx.account.accessToken ?? env.BUFFER_API_KEY;
     const data = await bufferGraphQL<{ posts: { edges: { node: { id: string; status?: string } }[] } }>(
       `query {
         posts(first: 50, input: ${gql({ organizationId, filter: { channelIds: [channelId] }, sort: [{ field: new GqlEnum("dueAt"), direction: new GqlEnum("desc") }] })}) { edges { node { id status } } }
       }`,
       {},
       this.fetchImpl,
+      apiKey,
     );
     const node = data.posts.edges.map((e) => e.node).find((n) => n.id === postId);
     const status = node?.status?.toLowerCase();

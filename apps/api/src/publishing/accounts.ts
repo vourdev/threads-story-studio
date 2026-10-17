@@ -43,7 +43,7 @@ export async function connectionOverview(userId: string) {
     return {
       provider: p.id,
       label: p.label,
-      serverConfigured: p.isConfigured(),
+      serverConfigured: p.id === "buffer" ? true : p.isConfigured(),
       capabilities: p.capabilities(),
       connected: row?.status === "connected",
       status: row?.status ?? "not_connected",
@@ -136,21 +136,47 @@ export async function completeThreadsOAuth(state: string, code: string, fetchImp
 
 // ---------------------------------------------------------------- Buffer
 
-export async function bufferChannels() {
-  const orgs = await listOrganizations();
+export async function bufferChannels(userId?: string, explicitToken?: string) {
+  let token = explicitToken?.trim();
+  if (!token && userId) {
+    const row = await getAccountRow(userId, "buffer");
+    if (row?.encryptedToken) {
+      try {
+        token = decryptSecret(row.encryptedToken);
+      } catch {
+        // fallback
+      }
+    }
+  }
+  if (!token) token = env.BUFFER_API_KEY;
+  if (!token) {
+    throw new AppError("not_configured", "Masukkan Buffer API Token untuk melihat channel.");
+  }
+  const orgs = await listOrganizations(token);
   const result = [];
   for (const org of orgs) {
-    const channels = await listChannels(org.id);
+    const channels = await listChannels(org.id, token);
     result.push({ organization: org, channels: channels.filter((c) => c.service.toLowerCase() === "threads") });
   }
   return result;
 }
 
-export async function connectBuffer(userId: string, organizationId: string, channelId: string) {
-  if (!getPublishingProvider("buffer").isConfigured()) {
-    throw new AppError("not_configured", "BUFFER_API_KEY is not set on the server.");
+export async function connectBuffer(userId: string, organizationId: string, channelId: string, explicitToken?: string) {
+  let token = explicitToken?.trim();
+  const existingRow = await getAccountRow(userId, "buffer");
+  if (!token && existingRow?.encryptedToken) {
+    try {
+      token = decryptSecret(existingRow.encryptedToken);
+    } catch {
+      // fallback
+    }
   }
-  const channels = await listChannels(organizationId);
+  if (!token) token = env.BUFFER_API_KEY;
+  if (!token) {
+    throw new AppError("not_configured", "Buffer API Token belum diatur.");
+  }
+
+  const channels = await listChannels(organizationId, token);
   const channel = channels.find((c) => c.id === channelId);
   if (!channel) throw new AppError("bad_request", "That Buffer channel was not found in the organization.");
   if (channel.service.toLowerCase() !== "threads") throw new AppError("bad_request", "Pick a Threads channel.");
@@ -160,6 +186,7 @@ export async function connectBuffer(userId: string, organizationId: string, chan
     externalAccountId: channel.id,
     username: channel.name,
     displayName: channel.displayName ?? channel.name,
+    encryptedToken: token ? encryptSecret(token) : null,
     meta: { organizationId, channelId },
     status: "connected" as const,
     statusMessage: channel.isQueuePaused ? "Buffer queue is paused for this channel." : null,
@@ -178,7 +205,8 @@ export async function validateConnection(userId: string, provider: PublishingPro
       if (!creds.accessToken) throw new PublishError("auth", "No token");
       await fetchThreadsProfile(creds.accessToken);
     } else {
-      const channels = await listChannels(creds.meta.organizationId ?? "");
+      const token = creds.accessToken ?? env.BUFFER_API_KEY;
+      const channels = await listChannels(creds.meta.organizationId ?? "", token);
       if (!channels.some((c) => c.id === creds.meta.channelId))
         throw new PublishError("auth", "Buffer channel no longer available.");
     }

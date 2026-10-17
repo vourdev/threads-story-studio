@@ -19,13 +19,23 @@ export const accountRoutes = new Hono<AuthedEnv>()
     await enforceRateLimit(`oauth:${userId}`, 10, 600);
     return c.json(await accounts.startThreadsOAuth(userId));
   })
-  .get("/buffer/channels", async (c) => c.json({ organizations: await accounts.bufferChannels() }))
+  .get("/buffer/channels", async (c) => {
+    const token = c.req.query("token");
+    return c.json({ organizations: await accounts.bufferChannels(c.get("user").id, token) });
+  })
   .post(
     "/buffer/connect",
-    validate("json", z.object({ organizationId: z.string().min(1).max(100), channelId: z.string().min(1).max(100) })),
+    validate(
+      "json",
+      z.object({
+        organizationId: z.string().min(1).max(100),
+        channelId: z.string().min(1).max(100),
+        token: z.string().trim().min(1).optional(),
+      }),
+    ),
     async (c) => {
       const body = c.req.valid("json");
-      await accounts.connectBuffer(c.get("user").id, body.organizationId, body.channelId);
+      await accounts.connectBuffer(c.get("user").id, body.organizationId, body.channelId, body.token);
       return c.json({ ok: true });
     },
   )
