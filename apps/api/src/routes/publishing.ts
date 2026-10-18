@@ -68,6 +68,11 @@ export const publishingRoutes = new Hono<AuthedEnv>()
     inBackground("retry", () => drive({ publicationId }));
     return c.json({ ok: true });
   })
+  .delete("/publications/:id", validate("param", idParam), async (c) => {
+    const publicationId = c.req.valid("param").id;
+    await publishing.cancelPublication(c.get("user").id, publicationId);
+    return c.json({ ok: true });
+  })
   /**
    * Called by the app when it opens or while a post is in progress: continues any of this user's
    * unfinished publishing work (e.g. after a server restart) and Buffer status checks.

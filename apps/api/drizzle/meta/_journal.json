@@ -8,6 +8,20 @@
       "when": 1792243394599,
       "tag": "0000_init",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1792298265483,
+      "tag": "0001_acoustic_hex",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1792298265484,
+      "tag": "0002_publications_scheduled_index",
+      "breakpoints": false
     }
   ]
 }

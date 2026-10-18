@@ -1,4 +1,4 @@
-import { AI_PROVIDERS, appSettingsInput, isValidParamValue } from "@tss/shared";
+import { AI_PROVIDERS, appSettingsInput, isValidParamValue, writingProfileInput } from "@tss/shared";
 import { eq } from "drizzle-orm";
 import { Hono } from "hono";
 import { z } from "zod";
@@ -6,7 +6,7 @@ import { z } from "zod";
 import { getProvider, providerStatuses, runAI } from "../ai/orchestrator";
 import { type AuthedEnv, requireUser } from "../auth/require-user";
 import { db } from "../db/client";
-import { appSettings } from "../db/schema";
+import { appSettings, userWritingProfiles } from "../db/schema";
 import { env, integrations, threadsRedirectUri } from "../env";
 import { validate } from "../lib/validate";
 import { AppError } from "../security/errors";
@@ -17,6 +17,13 @@ async function loadAppSettings(userId: string) {
   if (row) return row;
   const [created] = await db.insert(appSettings).values({ userId }).onConflictDoNothing().returning();
   return created ?? (await db.select().from(appSettings).where(eq(appSettings.userId, userId)))[0];
+}
+
+export async function loadWritingProfile(userId: string) {
+  const [row] = await db.select().from(userWritingProfiles).where(eq(userWritingProfiles.userId, userId));
+  if (row) return row;
+  const [created] = await db.insert(userWritingProfiles).values({ userId }).onConflictDoNothing().returning();
+  return created ?? (await db.select().from(userWritingProfiles).where(eq(userWritingProfiles.userId, userId)))[0];
 }
 
 export const settingsRoutes = new Hono<AuthedEnv>()
@@ -54,6 +61,21 @@ export const settingsRoutes = new Hono<AuthedEnv>()
       .where(eq(appSettings.userId, userId))
       .returning();
     return c.json({ settings });
+  })
+  .get("/writing-profile", async (c) => {
+    const profile = await loadWritingProfile(c.get("user").id);
+    return c.json({ profile });
+  })
+  .put("/writing-profile", validate("json", writingProfileInput), async (c) => {
+    const userId = c.get("user").id;
+    const input = c.req.valid("json");
+    await loadWritingProfile(userId);
+    const [profile] = await db
+      .update(userWritingProfiles)
+      .set(input)
+      .where(eq(userWritingProfiles.userId, userId))
+      .returning();
+    return c.json({ profile });
   })
   .post("/ai/test", validate("json", z.object({ provider: z.enum(AI_PROVIDERS) })), async (c) => {
     const userId = c.get("user").id;

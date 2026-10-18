@@ -34,6 +34,7 @@ import {
   storyParameterConfigs,
   storyVariations,
   storyVersions,
+  userWritingProfiles,
 } from "../db/schema";
 import { getOwnedProduct, toProductFacts } from "../products/facts";
 import { AppError, notFound } from "../security/errors";
@@ -346,7 +347,7 @@ export async function generateVariations(
   userId: string,
   storyId: string,
   count: number,
-  options: { avoidExistingHooks?: boolean } = {},
+  options: { avoidExistingHooks?: boolean; disablePersonalization?: boolean } = {},
 ) {
   const story = await getOwnedStory(userId, storyId);
   const ctx = await generationContext(userId, story);
@@ -366,6 +367,10 @@ export async function generateVariations(
     avoidHooks = existing.map((e) => e.hook).filter((h): h is string => Boolean(h));
   }
 
+  const [profile] = options.disablePersonalization
+    ? [null]
+    : await db.select().from(userWritingProfiles).where(eq(userWritingProfiles.userId, userId));
+
   const result = await ai.generateStories(userId, {
     mode: story.mode,
     rawInput: ctx.input.rawInput,
@@ -374,6 +379,7 @@ export async function generateVariations(
     topicAnalysis: ctx.topic,
     productAnalysis: ctx.productAnalysis,
     product: ctx.product,
+    profile,
     params: ctx.resolved,
     count,
     avoidHooks,

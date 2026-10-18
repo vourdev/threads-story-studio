@@ -28,6 +28,77 @@ export type ProductFacts = {
   dataSource: string;
 };
 
+export type WritingProfileContext = {
+  displayName?: string | null;
+  preferredName?: string | null;
+  bio?: string | null;
+  occupation?: string | null;
+  industry?: string | null;
+  currentActivities?: string | null;
+  interests?: string[];
+  contentTopics?: string[];
+  goals?: string | null;
+  targetAudience?: string | null;
+  preferredLanguage?: string | null;
+  tone?: string | null;
+  writingStyle?: string | null;
+  formalityLevel?: string | null;
+  sentenceLength?: string | null;
+  slangPreference?: string | null;
+  humorPreference?: string | null;
+  emojiPreference?: string | null;
+  storytellingPerspective?: string | null;
+  ctaStyle?: string | null;
+  favoriteExpressions?: string[];
+  avoidExpressions?: string[];
+  writingExamples?: string[];
+  factualBoundaries?: string | null;
+  forbiddenTopics?: string[];
+  personalizationEnabled?: boolean;
+};
+
+export function formatWritingProfile(profile?: WritingProfileContext | null): string {
+  if (!profile || profile.personalizationEnabled === false) return "";
+  const lines: string[] = [];
+  if (profile.preferredName || profile.displayName) {
+    lines.push(`Author: ${profile.preferredName || profile.displayName}`);
+  }
+  if (profile.bio) lines.push(`Bio/Background: ${profile.bio}`);
+  if (profile.occupation || profile.industry) {
+    lines.push(`Occupation/Industry: ${[profile.occupation, profile.industry].filter(Boolean).join(" in ")}`);
+  }
+  if (profile.currentActivities) lines.push(`Current Focus: ${profile.currentActivities}`);
+  if (profile.targetAudience) lines.push(`Target Audience: ${profile.targetAudience}`);
+  if (profile.tone) lines.push(`Tone: ${profile.tone}`);
+  if (profile.writingStyle) lines.push(`Writing Style: ${profile.writingStyle}`);
+  if (profile.formalityLevel) lines.push(`Formality: ${profile.formalityLevel}`);
+  if (profile.sentenceLength) lines.push(`Sentence Length: ${profile.sentenceLength}`);
+  if (profile.slangPreference) lines.push(`Slang: ${profile.slangPreference}`);
+  if (profile.humorPreference) lines.push(`Humor: ${profile.humorPreference}`);
+  if (profile.emojiPreference) lines.push(`Emoji: ${profile.emojiPreference}`);
+  if (profile.storytellingPerspective) lines.push(`Perspective: ${profile.storytellingPerspective}`);
+  if (profile.goals) lines.push(`Creator Goals: ${profile.goals}`);
+  if (profile.interests?.length) lines.push(`Interests: ${profile.interests.join(", ")}`);
+  if (profile.contentTopics?.length) lines.push(`Topics: ${profile.contentTopics.join(", ")}`);
+  if (profile.favoriteExpressions?.length) {
+    lines.push(`Favorite Expressions: ${profile.favoriteExpressions.join(", ")}`);
+  }
+  if (profile.avoidExpressions?.length) {
+    lines.push(`Words to Avoid: ${profile.avoidExpressions.join(", ")}`);
+  }
+  if (profile.forbiddenTopics?.length) {
+    lines.push(`Forbidden Topics (Never mention): ${profile.forbiddenTopics.join(", ")}`);
+  }
+  if (profile.factualBoundaries) {
+    lines.push(`Factual Boundaries: ${profile.factualBoundaries}`);
+  }
+  if (profile.writingExamples?.length) {
+    lines.push(`Author Voice Samples:\n${profile.writingExamples.slice(0, 3).map((ex, i) => `Sample ${i + 1}:\n${ex}`).join("\n\n")}`);
+  }
+  if (lines.length === 0) return "";
+  return tag("author_profile", lines.join("\n"));
+}
+
 const BASE_RULES = `You are a senior Threads storyteller and editor.
 Hard rules:
 - Never invent personal experiences, dates, events, names, dialogue, achievements, statistics or factual claims and present them as the user's genuine experience.
@@ -201,6 +272,7 @@ export function generateStoriesPrompt(input: {
   topicAnalysis?: TopicAnalysis | null;
   productAnalysis?: ProductAnalysis | null;
   product?: ProductFacts | null;
+  profile?: WritingProfileContext | null;
   params: Record<string, string>;
   count: number;
   avoidHooks?: string[];
@@ -232,6 +304,7 @@ List the user facts you relied on in usedFacts, and anything the user should ver
       input.clarifications.length
         ? tag("clarifications", input.clarifications.map((c) => `Q: ${c.question}\nA: ${c.answer}`).join("\n\n"))
         : "",
+      input.profile ? formatWritingProfile(input.profile) : "",
       input.topicAnalysis ? tag("topic_analysis", JSON.stringify(input.topicAnalysis)) : "",
       input.product ? tag("product_data", formatProduct(input.product)) : "",
       input.productAnalysis ? tag("product_analysis", JSON.stringify(input.productAnalysis)) : "",

@@ -227,6 +227,10 @@ async function runPublishJob(job: Job, pub: typeof publications.$inferSelect) {
   const provider = getPublishingProvider(pub.provider);
   const started = Date.now();
   const { __reconcile, ...stepState } = job.stepState;
+  if (pub.status === "scheduled") {
+    await db.update(publications).set({ status: "publishing" }).where(eq(publications.id, pub.id));
+    await syncStoryStatus(pub.storyId);
+  }
   try {
     const account = await getCredentials(pub.userId, pub.provider);
     const ctx: PublishContext = {

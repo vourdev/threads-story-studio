@@ -51,7 +51,10 @@ const schema = z.object({
     .transform((v) => v || "nH/l+ySjzJA5xRpX/AwusljsrxRRzvD/f36fIvrZN1c=")
     .refine((v) => Buffer.from(v, "base64").length === 32, "ENCRYPTION_KEY must be 32 bytes, base64 encoded"),
   APP_SCHEME: z.string().default("threadsstory"),
-  ALLOW_SIGNUP: bool,
+  ALLOW_SIGNUP: z
+    .enum(["true", "false", "1", "0"])
+    .default("true")
+    .transform((v) => v === "true" || v === "1"),
   CLICK_IP_SALT: optionalString,
 
   // AI providers (optional; each is enabled only when configured)

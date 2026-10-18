@@ -99,6 +99,9 @@ export async function requestPublish(userId: string, storyId: string, input: Pub
     const [active] = await tx.select().from(publications).where(activeFilter);
     if (active) return { publication: active, duplicate: true };
 
+    const isScheduled = Boolean(input.scheduledFor && new Date(input.scheduledFor).getTime() > Date.now());
+    const scheduledDate = isScheduled ? new Date(input.scheduledFor!) : null;
+
     const [publication] = await tx
       .insert(publications)
       .values({
@@ -107,7 +110,8 @@ export async function requestPublish(userId: string, storyId: string, input: Pub
         storyVersionNo: story.currentVersionNo,
         postsSnapshot: finalPosts,
         provider: input.provider,
-        status: "publishing",
+        status: isScheduled ? "scheduled" : "publishing",
+        scheduledFor: scheduledDate,
         idempotencyKey: clientKey ?? crypto.randomUUID(),
       })
       .onConflictDoNothing()
@@ -124,6 +128,8 @@ export async function requestPublish(userId: string, storyId: string, input: Pub
       publicationId: publication.id,
       kind: "publish",
       step: provider.initialStep(),
+      status: isScheduled ? "waiting" : "pending",
+      runAt: scheduledDate ?? new Date(),
       maxAttempts: MAX_PUBLISH_ATTEMPTS,
     });
     await syncStoryStatus(storyId, tx);
@@ -131,7 +137,21 @@ export async function requestPublish(userId: string, storyId: string, input: Pub
   });
 }
 
-async function getOwnedPublication(userId: string, publicationId: string) {
+export async function cancelPublication(userId: string, publicationId: string) {
+  const publication = await getOwnedPublication(userId, publicationId);
+  if (publication.status !== "scheduled") {
+    throw new AppError("bad_request", "Only scheduled publications can be cancelled.");
+  }
+  await db.delete(publishingJobs).where(eq(publishingJobs.publicationId, publicationId));
+  await db
+    .update(publications)
+    .set({ status: "failed", lastErrorMessage: "Cancelled by user" })
+    .where(eq(publications.id, publicationId));
+  await syncStoryStatus(publication.storyId);
+  return { ok: true };
+}
+
+export async function getOwnedPublication(userId: string, publicationId: string) {
   const [row] = await db
     .select()
     .from(publications)

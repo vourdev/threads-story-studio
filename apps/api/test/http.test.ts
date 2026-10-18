@@ -34,15 +34,15 @@ describe("HTTP security", () => {
     }
   });
 
-  it("closes sign-up after the owner account exists", async () => {
+  it("allows multiple users to sign up independently in multi-user mode", async () => {
     const first = await signUp();
     expect(first.res.status).toBe(200);
     const second = await app.request("/api/auth/sign-up/email", {
       method: "POST",
       headers: ORIGIN,
-      body: JSON.stringify({ email: "x@test.local", password: "correct-horse-battery", name: "X" }),
+      body: JSON.stringify({ email: "second@test.local", password: "correct-horse-battery", name: "Second User" }),
     });
-    expect(second.status).toBeGreaterThanOrEqual(400);
+    expect(second.status).toBe(200);
   });
 
   it("never returns secrets from settings", async () => {

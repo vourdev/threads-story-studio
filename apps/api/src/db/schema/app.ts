@@ -74,6 +74,37 @@ export const appSettings = pgTable("app_settings", {
   ...timestamps,
 });
 
+export const userWritingProfiles = pgTable("user_writing_profiles", {
+  userId: ownerId().primaryKey(),
+  displayName: text(),
+  preferredName: text(),
+  bio: text(),
+  occupation: text(),
+  industry: text(),
+  currentActivities: text(),
+  interests: jsonb().$type<string[]>().notNull().default([]),
+  contentTopics: jsonb().$type<string[]>().notNull().default([]),
+  goals: text(),
+  targetAudience: text(),
+  preferredLanguage: text().notNull().default("id_casual"),
+  tone: text(),
+  writingStyle: text(),
+  formalityLevel: text(),
+  sentenceLength: text(),
+  slangPreference: text(),
+  humorPreference: text(),
+  emojiPreference: text(),
+  storytellingPerspective: text(),
+  ctaStyle: text(),
+  favoriteExpressions: jsonb().$type<string[]>().notNull().default([]),
+  avoidExpressions: jsonb().$type<string[]>().notNull().default([]),
+  writingExamples: jsonb().$type<string[]>().notNull().default([]),
+  factualBoundaries: text(),
+  forbiddenTopics: jsonb().$type<string[]>().notNull().default([]),
+  personalizationEnabled: boolean().notNull().default(true),
+  ...timestamps,
+});
+
 export const aiUsageLogs = pgTable(
   "ai_usage_logs",
   {
@@ -337,6 +368,7 @@ export const publications = pgTable(
     attempts: integer().notNull().default(0),
     submittedAt: timestamp({ withTimezone: true }),
     publishedAt: timestamp({ withTimezone: true }),
+    scheduledFor: timestamp({ withTimezone: true }),
     ...timestamps,
   },
   (t) => [
@@ -345,7 +377,7 @@ export const publications = pgTable(
     // At most one in-flight publication per story version and provider.
     uniqueIndex("publications_active_unique")
       .on(t.storyId, t.storyVersionNo, t.provider)
-      .where(sql`status in ('publishing','submitted')`),
+      .where(sql`status in ('scheduled','publishing','submitted')`),
   ],
 );
 

@@ -39,7 +39,9 @@ export type ParamOperationInput = z.infer<typeof paramOperationInput>;
 
 export const generateInput = z.object({
   count: z.number().int().min(1).max(5).default(3),
+  disablePersonalization: z.boolean().optional().default(false),
 });
+export type GenerateInput = z.infer<typeof generateInput>;
 
 export const saveContentInput = z.object({
   posts: storyPostsSchema,
@@ -96,9 +98,10 @@ export const refineInput = z.object({
 });
 export type RefineInput = z.infer<typeof refineInput>;
 
-/** Publishing is always immediate. */
+/** Publishing can be immediate or scheduled. */
 export const publishInput = z.object({
   provider: z.enum(PUBLISHING_PROVIDERS),
+  scheduledFor: z.string().datetime().optional(),
 });
 export type PublishInput = z.infer<typeof publishInput>;
 
@@ -157,3 +160,47 @@ export const registerDeviceInput = z.object({
 });
 
 export const MAX_SINGLE_POST_CHARS = THREADS_MAX_CHARS;
+
+export const userRoleEnum = z.enum(["user", "admin"]);
+export type UserRole = z.infer<typeof userRoleEnum>;
+
+export const writingProfileInput = z.object({
+  displayName: z.string().trim().max(100).optional().nullable(),
+  preferredName: z.string().trim().max(100).optional().nullable(),
+  bio: z.string().trim().max(1000).optional().nullable(),
+  occupation: z.string().trim().max(100).optional().nullable(),
+  industry: z.string().trim().max(100).optional().nullable(),
+  currentActivities: z.string().trim().max(1000).optional().nullable(),
+  interests: z.array(z.string().trim().max(100)).max(20).default([]),
+  contentTopics: z.array(z.string().trim().max(100)).max(20).default([]),
+  goals: z.string().trim().max(1000).optional().nullable(),
+  targetAudience: z.string().trim().max(500).optional().nullable(),
+  preferredLanguage: z.string().max(20).default("id_casual"),
+  tone: z.string().trim().max(100).optional().nullable(),
+  writingStyle: z.string().trim().max(100).optional().nullable(),
+  formalityLevel: z.string().trim().max(100).optional().nullable(),
+  sentenceLength: z.string().trim().max(100).optional().nullable(),
+  slangPreference: z.string().trim().max(100).optional().nullable(),
+  humorPreference: z.string().trim().max(100).optional().nullable(),
+  emojiPreference: z.string().trim().max(100).optional().nullable(),
+  storytellingPerspective: z.string().trim().max(100).optional().nullable(),
+  ctaStyle: z.string().trim().max(100).optional().nullable(),
+  favoriteExpressions: z.array(z.string().trim().max(200)).max(30).default([]),
+  avoidExpressions: z.array(z.string().trim().max(200)).max(30).default([]),
+  writingExamples: z.array(z.string().trim().max(2000)).max(10).default([]),
+  factualBoundaries: z.string().trim().max(1000).optional().nullable(),
+  forbiddenTopics: z.array(z.string().trim().max(100)).max(30).default([]),
+  personalizationEnabled: z.boolean().default(true),
+});
+export type WritingProfileInput = z.infer<typeof writingProfileInput>;
+
+export const onboardingInput = z.object({
+  step: z.number().int().min(1).max(10).optional(),
+  completed: z.boolean().optional(),
+  displayName: z.string().trim().max(100).optional(),
+  preferredLanguage: z.string().max(20).optional(),
+  writingStyle: z.string().trim().max(100).optional(),
+  tone: z.string().trim().max(100).optional(),
+  targetAudience: z.string().trim().max(500).optional(),
+});
+export type OnboardingInput = z.infer<typeof onboardingInput>;

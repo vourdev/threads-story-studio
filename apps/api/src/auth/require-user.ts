@@ -18,3 +18,13 @@ export const requireUser = createMiddleware<AuthedEnv>(async (c, next) => {
   c.set("session", result.session);
   await next();
 });
+
+/** Rejects non-admin requests. Protects platform administration endpoints. */
+export const requireAdmin = createMiddleware<AuthedEnv>(async (c, next) => {
+  const user = c.get("user") as AuthSession["user"] & { role?: string };
+  if (!user || user.role !== "admin") {
+    throw new AppError("forbidden", "Administrator access required.");
+  }
+  await next();
+});
+

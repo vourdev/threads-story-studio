@@ -3,6 +3,7 @@ import { defineConfig } from "vitest/config";
 export default defineConfig({
   test: {
     environment: "node",
+    include: ["test/**/*.test.ts"],
     globalSetup: ["./test/global-setup.ts"],
     // DB-backed tests share one database: run files sequentially.
     fileParallelism: false,

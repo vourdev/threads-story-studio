@@ -61,7 +61,10 @@ export const storyRoutes = new Hono<AuthedEnv>()
   .post("/:id/generate", validate("param", idParam), validate("json", generateInput), async (c) => {
     const userId = c.get("user").id;
     await aiLimit(userId);
-    const variations = await stories.generateVariations(userId, c.req.valid("param").id, c.req.valid("json").count);
+    const body = c.req.valid("json");
+    const variations = await stories.generateVariations(userId, c.req.valid("param").id, body.count, {
+      disablePersonalization: body.disablePersonalization,
+    });
     return c.json({ variations });
   })
   .post("/:id/variations/new", validate("param", idParam), async (c) => {

@@ -8,11 +8,13 @@ import { db } from "../db/client";
 import * as schema from "../db/schema";
 import { env } from "../env";
 
-/** First account becomes the owner; afterwards sign-up is closed unless ALLOW_SIGNUP=true. */
+/** Multi-user SaaS sign-up: open by default unless explicitly disabled with ALLOW_SIGNUP=false. */
 export async function isSignupOpen(): Promise<boolean> {
-  if (env.ALLOW_SIGNUP) return true;
-  const [row] = await db.select({ n: count() }).from(schema.users);
-  return (row?.n ?? 0) === 0;
+  if (env.ALLOW_SIGNUP === false) {
+    const [row] = await db.select({ n: count() }).from(schema.users);
+    return (row?.n ?? 0) === 0;
+  }
+  return true;
 }
 
 export const auth = betterAuth({
@@ -33,6 +35,20 @@ export const auth = betterAuth({
     enabled: true,
     minPasswordLength: 10,
     maxPasswordLength: 128,
+  },
+  user: {
+    additionalFields: {
+      role: {
+        type: "string",
+        defaultValue: "user",
+        input: false,
+      },
+      onboardingCompleted: {
+        type: "boolean",
+        defaultValue: false,
+        input: false,
+      },
+    },
   },
   session: {
     expiresIn: 60 * 60 * 24 * 30,
@@ -58,7 +74,26 @@ export const auth = betterAuth({
           if (!(await isSignupOpen())) {
             throw new APIError("FORBIDDEN", { message: "Sign-up is closed for this workspace." });
           }
-          return { data: user };
+          const [row] = await db.select({ n: count() }).from(schema.users);
+          const isFirstUser = (row?.n ?? 0) === 0;
+          return {
+            data: {
+              ...user,
+              role: isFirstUser ? "admin" : "user",
+              onboardingCompleted: false,
+            },
+          };
+        },
+        after: async (user) => {
+          try {
+            await db.insert(schema.appSettings).values({ userId: user.id }).onConflictDoNothing();
+            await db.insert(schema.userWritingProfiles).values({
+              userId: user.id,
+              displayName: user.name,
+            }).onConflictDoNothing();
+          } catch (err) {
+            console.error("Failed to seed initial user profile/settings:", err);
+          }
         },
       },
     },
