@@ -19,10 +19,16 @@ export const accountRoutes = new Hono<AuthedEnv>()
     await enforceRateLimit(`oauth:${userId}`, 10, 600);
     return c.json(await accounts.startThreadsOAuth(userId));
   })
-  .get("/buffer/channels", async (c) => {
-    const token = c.req.query("token");
-    return c.json({ organizations: await accounts.bufferChannels(c.get("user").id, token) });
-  })
+  // Token travels in the body, never the URL (URLs end up in access logs and proxies).
+  .post(
+    "/buffer/channels",
+    validate("json", z.object({ token: z.string().trim().min(1).max(500).optional() })),
+    async (c) => {
+      const userId = c.get("user").id;
+      await enforceRateLimit(`buffer-channels:${userId}`, 20, 600);
+      return c.json({ organizations: await accounts.bufferChannels(userId, c.req.valid("json").token) });
+    },
+  )
   .post(
     "/buffer/connect",
     validate(
@@ -30,7 +36,7 @@ export const accountRoutes = new Hono<AuthedEnv>()
       z.object({
         organizationId: z.string().min(1).max(100),
         channelId: z.string().min(1).max(100),
-        token: z.string().trim().min(1).optional(),
+        token: z.string().trim().min(1).max(500).optional(),
       }),
     ),
     async (c) => {

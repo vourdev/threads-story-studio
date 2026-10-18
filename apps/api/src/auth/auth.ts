@@ -37,6 +37,9 @@ export const auth = betterAuth({
   session: {
     expiresIn: 60 * 60 * 24 * 30,
     updateAge: 60 * 60 * 24,
+    // Signed session snapshot in a cookie: most requests skip the session/user lookups entirely.
+    // A revoked session stays usable for at most this long.
+    cookieCache: { enabled: true, maxAge: 5 * 60 },
   },
   trustedOrigins: [
     `${env.APP_SCHEME}://`,

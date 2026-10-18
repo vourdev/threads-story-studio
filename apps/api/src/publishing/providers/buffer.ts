@@ -1,6 +1,6 @@
 import type { ProviderCapabilities } from "@tss/shared";
 
-import { env, integrations } from "../../env";
+import { env } from "../../env";
 import {
   type AccountCredentials,
   type PublishContext,
@@ -145,8 +145,12 @@ export class BufferProvider implements PublishingProvider {
     };
   }
 
+  /**
+   * Each user connects Buffer with their own API token (stored encrypted on the account);
+   * the server-wide BUFFER_API_KEY is only a fallback. A missing key surfaces when connecting.
+   */
   isConfigured() {
-    return integrations.buffer();
+    return true;
   }
 
   initialStep() {

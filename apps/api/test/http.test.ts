@@ -55,6 +55,12 @@ describe("HTTP security", () => {
     }
   });
 
+  it("never accepts the Buffer token in a URL", async () => {
+    const { cookie } = await signUp();
+    const res = await app.request("/api/accounts/buffer/channels?token=secret-token", { headers: { cookie } });
+    expect(res.status).toBe(404);
+  });
+
   it("validates request payloads", async () => {
     const { cookie } = await signUp();
     const res = await app.request("/api/stories", {

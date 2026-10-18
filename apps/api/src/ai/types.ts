@@ -47,7 +47,11 @@ export type AIErrorKind =
   | "invalid_output"
   | "not_configured";
 
-const RETRYABLE: ReadonlySet<AIErrorKind> = new Set(["rate_limited", "timeout", "transient", "unavailable"]);
+/**
+ * Retried on the same provider. Timeouts and unavailable pools are NOT retried here: the request
+ * fails over to the next provider immediately instead, which keeps interactive latency bounded.
+ */
+const RETRYABLE: ReadonlySet<AIErrorKind> = new Set(["rate_limited", "transient"]);
 /** Errors where trying a different provider makes sense (the provider itself failed, not the request). */
 const FALLBACK_ELIGIBLE: ReadonlySet<AIErrorKind> = new Set([
   "rate_limited",

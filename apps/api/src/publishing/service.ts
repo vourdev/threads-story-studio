@@ -9,7 +9,7 @@ import {
 import { and, asc, desc, eq, gte, inArray, lte, type SQL } from "drizzle-orm";
 
 import { db, type Tx } from "../db/client";
-import { affiliateLinks, appSettings, publications, publishingAttempts, publishingJobs, stories } from "../db/schema";
+import { affiliateLinks, publications, publishingAttempts, publishingJobs, stories } from "../db/schema";
 import { env } from "../env";
 import { AppError, notFound } from "../security/errors";
 import { getOwnedStory } from "../stories/service";
@@ -18,11 +18,6 @@ import { getPublishingProvider } from "./registry";
 
 /** Transient failures are retried this many times (with backoff) before a publication is marked failed. */
 export const MAX_PUBLISH_ATTEMPTS = 3;
-
-export async function getUserTimezone(userId: string): Promise<string> {
-  const [row] = await db.select({ tz: appSettings.timezone }).from(appSettings).where(eq(appSettings.userId, userId));
-  return row?.tz ?? "Asia/Jakarta";
-}
 
 /** Story status mirrors its most relevant publication: published wins, then in-flight, then the latest failure. */
 export async function syncStoryStatus(storyId: string, tx: Pick<Tx, "select" | "update"> = db) {

@@ -31,7 +31,7 @@ export type ProductFacts = {
 const BASE_RULES = `You are a senior Threads storyteller and editor.
 Hard rules:
 - Never invent personal experiences, dates, events, names, dialogue, achievements, statistics or factual claims and present them as the user's genuine experience.
-- Use only facts the user supplied (and, for products, only the verified product data provided). If something is missing, write around it or keep it general — do not fill the gap with made-up specifics.
+- Use only facts the user supplied (and, for products, only the verified product data provided). If something is missing, write around it or keep it general; do not fill the gap with made-up specifics.
 - This includes implied specifics: no time anchors ("hari ini", "kemarin", "bulan lalu"), durations ("penantian panjang", "3 bulan"), counts, places, company names, job titles, amounts or other people's reactions unless the user stated them. Vague-but-true phrasing ("akhirnya", "berkali-kali") is fine when it mirrors the user's words.
 - Never promise or imply guaranteed virality or invent engagement numbers.
 - No misleading clickbait: curiosity is fine, deception is not.
@@ -74,7 +74,7 @@ function describeParams(mode: GenerationMode, params: Record<string, string>): s
 function formatProduct(product: ProductFacts): string {
   const price =
     product.priceMin && product.verifiedFields.includes("price")
-      ? `${product.currency ?? ""} ${product.priceMin}${product.priceMax && product.priceMax !== product.priceMin ? ` – ${product.priceMax}` : ""}`.trim()
+      ? `${product.currency ?? ""} ${product.priceMin}${product.priceMax && product.priceMax !== product.priceMin ? ` - ${product.priceMax}` : ""}`.trim()
       : "unknown (do not mention a price)";
   return [
     `Name: ${product.name}`,
@@ -134,7 +134,7 @@ export function suggestParametersPrompt(input: {
   const catalog = paramsForMode(input.mode)
     .map((def) => {
       const entry = input.current[def.key];
-      const locked = entry?.state === "locked" ? " [LOCKED — keep current value]" : "";
+      const locked = entry?.state === "locked" ? " [LOCKED: keep current value]" : "";
       const values =
         def.kind === "select"
           ? `one of: ${def.options.map((o) => o.value).join(", ")}${def.allowCustom ? " (or a short custom value)" : ""}`
@@ -185,10 +185,12 @@ const FORMAT_RULES = (params: Record<string, string>) => {
             ? "4-8 posts"
             : "a multi-post thread of 3-7 posts";
   return `Formatting for Threads (mobile):
-- Output ${shape}. Each post must be at most ${THREADS_MAX_CHARS} characters (emoji count as 4) — aim for 200-450.
+- Output ${shape}. Each post must be at most ${THREADS_MAX_CHARS} characters (emoji count as 4); aim for 200-450.
 - First line of post 1 is the hook. Short paragraphs, line breaks between ideas, conversational rhythm.
 - No hashtag spam (0-1 relevant topic word is fine). Emoji sparingly.
-- Each post should read well on its own and pull the reader to the next one.`;
+- Each post should read well on its own and pull the reader to the next one.
+- Never use em dashes or en dashes (they read as AI-written on Threads). Use commas, periods or line breaks.
+- Avoid stock AI phrasing and filler openers; write like the person actually talks.`;
 };
 
 export function generateStoriesPrompt(input: {
@@ -212,14 +214,14 @@ export function generateStoriesPrompt(input: {
         : "This is the user's real experience: use only the facts they gave. You may describe feelings only where the user implied them.";
   const cta =
     input.mode === "affiliate"
-      ? `\nCTA: end with a call to action in the style "${optionLabel("ctaStrategy", input.params.ctaStrategy ?? "view_product")}" as one short sentence. The app appends the actual link directly after the CTA, so refer to it as "link di bawah" / "link ini" — never "link di bio", never a URL. Put the CTA sentence in the "cta" field and NOT inside the posts.`
+      ? `\nCTA: end with a call to action in the style "${optionLabel("ctaStrategy", input.params.ctaStrategy ?? "view_product")}" as one short sentence. The app appends the actual link directly after the CTA, so refer to it as "link di bawah" / "link ini", never "link di bio", never a URL. Put the CTA sentence in the "cta" field and NOT inside the posts.`
       : "\nThe cta field must be an empty string.";
 
   return {
     version: PROMPT_VERSION,
     system: `${BASE_RULES}${input.mode === "affiliate" ? `\n${PROMO_RULES}` : ""}
 
-Task: write ${input.count} genuinely different Threads story variations. They must differ in storytelling strategy, opening technique (e.g. question vs. bold statement vs. scene), narrative progression and ending — not be paraphrases. No two variations may start with the same words or the same kind of sentence. Typical spread: emotional & relatable, curiosity-driven, problem-to-solution — choose better strategies if the input calls for it.
+Task: write ${input.count} genuinely different Threads story variations. They must differ in storytelling strategy, opening technique (e.g. question vs. bold statement vs. scene), narrative progression and ending; they must not be paraphrases. No two variations may start with the same words or the same kind of sentence. Typical spread: emotional & relatable, curiosity-driven, problem-to-solution. Choose better strategies if the input calls for it.
 ${lang}
 ${factuality}
 ${FORMAT_RULES(input.params)}${cta}
@@ -249,9 +251,9 @@ const REFINE_GUIDANCE: Record<RefineAction, string> = {
   stronger_hook:
     "Rewrite only the opening hook (first 1-2 lines of post 1) to be sharper and more curiosity-driven without being misleading. Keep everything else.",
   more_emotional: "Increase emotional resonance using only feelings implied by the user's facts.",
-  more_relatable: "Make it more relatable to the target audience with everyday framing — no invented events.",
+  more_relatable: "Make it more relatable to the target audience with everyday framing and no invented events.",
   more_concise: "Tighten wording; remove filler; keep the narrative and facts.",
-  more_natural: "Make it sound like a real person talking — natural, less polished, no AI clichés.",
+  more_natural: "Make it sound like a real person talking: natural, less polished, no AI clichés.",
   funnier: "Add light, natural humor that fits the facts. Do not invent funny events.",
   better_progression: "Improve the narrative flow between posts: setup → tension → turn → payoff.",
   change_angle: "Retell the story from a different storytelling angle.",
@@ -325,7 +327,7 @@ export function evaluateStoryPrompt(input: {
 }): PromptPair {
   return {
     version: PROMPT_VERSION,
-    system: `${BASE_RULES}\n${PROMO_RULES}\n\nTask: audit the story. List every statement not supported by the user's input/facts or the verified product data — including implied timing ("hari ini"), durations, counts, places, names and reactions the user never mentioned. Paraphrases of stated facts and feelings the user clearly implied (e.g. "felt not good enough" → "minder", "down") ARE supported — do not list them. Flag misleading promotion. Score hook strength and mobile readability. Be strict and concise. Write findings in the story's language.`,
+    system: `${BASE_RULES}\n${PROMO_RULES}\n\nTask: audit the story. List every statement not supported by the user's input/facts or the verified product data, including implied timing ("hari ini"), durations, counts, places, names and reactions the user never mentioned. Paraphrases of stated facts and feelings the user clearly implied (e.g. "felt not good enough" → "minder", "down") ARE supported; do not list them. Flag misleading promotion. Score hook strength and mobile readability. Be strict and concise. Write findings in the story's language.`,
     prompt: [
       tag("user_input", input.rawInput || "(none)"),
       input.userFacts.length ? tag("user_facts", input.userFacts.map((f) => `- ${f}`).join("\n")) : "",
@@ -364,7 +366,7 @@ How to respond:
 - If the message asks for a change (e.g. "bikin hook-nya lebih nendang", "post 3 terlalu panjang", "ganti endingnya jadi pertanyaan"), set action="revise" and return the FULL updated story in posts. Change only what was asked; keep every other post word-for-word unless a change is needed for flow.
 - References like "post 2", "paragraf terakhir", "hook" refer to the current story.
 - If the message is a question or feedback without a requested change, set action="answer", posts=[] and reply helpfully.
-- If the change would require details the user never gave (names, dates, numbers, events), set action="clarify", posts=[] and ask one short question — or offer to frame it as hypothetical. Never invent them.
+- If the change would require details the user never gave (names, dates, numbers, events), set action="clarify", posts=[] and ask one short question, or offer to frame it as hypothetical. Never invent them.
 - If the user states new facts about their experience, you may use them and list them in newFacts.
 - Keep the reply short (1-3 sentences), friendly, in the same language the user writes in, and mention what you changed.
 - Respect the selected parameters unless the user explicitly overrides them in the chat. ${languageInstruction(input.params.language ?? "id_casual")} applies to the story text.

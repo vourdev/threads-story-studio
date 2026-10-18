@@ -1,7 +1,15 @@
 import { and, count, desc, eq, gte, isNull, sql, sum } from "drizzle-orm";
 
 import { db } from "../db/client";
-import { affiliateLinks, aiUsageLogs, analyticsEvents, products, publications, stories } from "../db/schema";
+import {
+  affiliateLinks,
+  aiUsageLogs,
+  analyticsEvents,
+  appSettings,
+  products,
+  publications,
+  stories,
+} from "../db/schema";
 
 export const RANGES = { "7d": 7, "30d": 30, "90d": 90, all: null } as const;
 export type Range = keyof typeof RANGES;
@@ -14,7 +22,9 @@ function since(range: Range): Date {
 const notBot = sql`coalesce((${analyticsEvents.meta}->>'bot')::boolean, false) = false`;
 
 /** Dashboard metrics. Every number comes from persisted application data; sources are labelled for the UI. */
-export async function dashboard(userId: string, range: Range, timezone: string) {
+export async function dashboard(userId: string, range: Range) {
+  // Timezone resolved inside SQL so the whole dashboard is one parallel round trip.
+  const timezone = sql`coalesce((select ${appSettings.timezone} from ${appSettings} where ${appSettings.userId} = ${userId}), 'Asia/Jakarta')`;
   const from = since(range);
   const eventCount = (type: (typeof analyticsEvents.$inferSelect)["type"], extra = sql`true`) =>
     db

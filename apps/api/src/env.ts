@@ -16,7 +16,17 @@ const schema = z.object({
 
   // Core (required)
   DATABASE_URL: z.string().min(1),
-  DATABASE_POOL_MAX: z.coerce.number().int().min(1).max(50).default(5),
+  DATABASE_POOL_MAX: z.coerce.number().int().min(1).max(50).default(10),
+  /**
+   * Named prepared statements save a network round trip per query, but transaction-mode poolers
+   * (Supabase/PgBouncer on :6543, Neon "-pooler" hosts) don't support them. Auto-detected when unset.
+   */
+  DATABASE_PREPARE: z
+    .enum(["true", "false", "1", "0"])
+    .optional()
+    .transform((v) => (v === undefined ? undefined : v === "true" || v === "1")),
+  /** Development only: log every SQL statement (for counting round trips while profiling). */
+  LOG_SQL: bool,
   BETTER_AUTH_SECRET: z
     .string()
     .optional()

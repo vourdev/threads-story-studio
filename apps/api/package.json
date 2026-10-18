@@ -5,13 +5,15 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch --env-file-if-exists=.env src/server.ts",
-    "start": "tsx src/server.ts",
+    "start": "node --enable-source-maps dist/server.mjs",
     "worker": "tsx --env-file-if-exists=.env scripts/dev-worker.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx --env-file-if-exists=.env scripts/migrate.ts",
-    "db:studio": "drizzle-kit studio"
+    "db:studio": "drizzle-kit studio",
+    "build": "esbuild src/server.ts --bundle --platform=node --target=node22 --format=esm --packages=external --alias:@tss/shared=../../packages/shared/src/index.ts --sourcemap --outfile=dist/server.mjs",
+    "start:tsx": "tsx src/server.ts"
   },
   "dependencies": {
     "@better-auth/expo": "1.7.10",
@@ -24,7 +26,8 @@
     "hono": "4.13.13",
     "postgres": "3.4.9",
     "tsx": "4.23.15",
-    "zod": "4.6.7"
+    "zod": "4.6.7",
+    "esbuild": "^0.28.2"
   },
   "devDependencies": {
     "@types/node": "^22.20.5",

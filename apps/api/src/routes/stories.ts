@@ -40,6 +40,15 @@ export const storyRoutes = new Hono<AuthedEnv>()
     await aiLimit(userId);
     return c.json(await stories.analyzeStory(userId, c.req.valid("param").id));
   })
+  /** Analyze + suggest in one request: one round trip for the app, and it completes even if the app goes to background. */
+  .post("/:id/prepare", validate("param", idParam), async (c) => {
+    const userId = c.get("user").id;
+    await aiLimit(userId);
+    const id = c.req.valid("param").id;
+    const analysis = await stories.analyzeStory(userId, id);
+    const suggested = await stories.suggestParams(userId, id);
+    return c.json({ ...analysis, ...suggested });
+  })
   .post("/:id/suggest", validate("param", idParam), async (c) => {
     const userId = c.get("user").id;
     await aiLimit(userId);

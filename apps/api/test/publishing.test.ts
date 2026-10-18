@@ -335,3 +335,27 @@ describe("OAuth state", () => {
     await expect(consumeOAuthState("forged", "threads")).rejects.toThrow();
   });
 });
+
+describe("Buffer with a per-user token", () => {
+  beforeEach(resetDb);
+
+  it("publishes with the user's own Buffer token instead of the server key", async () => {
+    const { userId, storyId } = await seed(["solo"]);
+    await db
+      .update(connectedAccounts)
+      .set({ encryptedToken: encryptSecret("user-buffer-token") })
+      .where(and(eq(connectedAccounts.userId, userId), eq(connectedAccounts.provider, "buffer")));
+    const api = routeFetch([
+      ["api.buffer.com", () => json({ data: { createPost: { __typename: "PostActionSuccess", post: { id: "b9" } } } })],
+    ]);
+    setPublishingProvidersForTests({ buffer: new BufferProvider(api.impl) });
+
+    const { publication } = await requestPublish(userId, storyId, { provider: "buffer" });
+    const [job] = await claimDueJobs(5, { publicationId: publication.id });
+    if (job) await processJob(job);
+
+    const headers = new Headers(api.calls[0]?.init?.headers);
+    expect(headers.get("authorization")).toBe("Bearer user-buffer-token");
+    expect((await getPub(publication.id))?.status).toBe("submitted");
+  });
+});

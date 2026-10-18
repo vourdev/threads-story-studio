@@ -13,13 +13,14 @@ try {
   await migrate(drizzle(sql), { migrationsFolder: new URL("../drizzle", import.meta.url).pathname });
   await sql.end();
   console.log("Migrations applied successfully.");
-} catch (err: any) {
-  console.warn("Migration notice:", err.message);
-  if (err.message?.includes("already exists") || err.code === "23505") {
+} catch (err) {
+  const { message, code } = err as { message?: string; code?: string };
+  console.warn("Migration notice:", message);
+  if (message?.includes("already exists") || code === "23505") {
     console.log("Database schema is already up to date.");
     process.exit(0);
   }
   // If connection fails during build, log warning rather than blocking build since schema is already initialized
-  console.warn("Continuing build without applying migrations:", err.message);
+  console.warn("Continuing build without applying migrations:", message);
   process.exit(0);
 }

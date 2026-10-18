@@ -8,7 +8,6 @@ import { type AuthedEnv, requireUser } from "../auth/require-user";
 import { db } from "../db/client";
 import { devices } from "../db/schema";
 import { validate } from "../lib/validate";
-import { getUserTimezone } from "../publishing/service";
 
 export const dashboardRoutes = new Hono<AuthedEnv>()
   .use(requireUser)
@@ -17,7 +16,7 @@ export const dashboardRoutes = new Hono<AuthedEnv>()
     validate("query", z.object({ range: z.enum(Object.keys(RANGES) as [Range, ...Range[]]).default("30d") })),
     async (c) => {
       const userId = c.get("user").id;
-      return c.json(await dashboard(userId, c.req.valid("query").range, await getUserTimezone(userId)));
+      return c.json(await dashboard(userId, c.req.valid("query").range));
     },
   );
 

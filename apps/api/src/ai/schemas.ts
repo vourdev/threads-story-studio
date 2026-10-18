@@ -19,7 +19,7 @@ export const topicAnalysisSchema = z.object({
   suggestedLength: z.enum(["single_post", "short", "medium", "long", "multi_post"]),
   suggestedEnding: text(200),
   userFacts: list(20, 300).describe("Facts explicitly stated by the user, quoted or closely paraphrased"),
-  missingDetails: list(10).describe("Details a story might want but that the user did NOT supply — never invent them"),
+  missingDetails: list(10).describe("Details a story might want but that the user did NOT supply; never invent them"),
   clarifyingQuestions: list(4).describe("Only questions that would materially improve the story"),
   inputSufficiency: z.enum(["sufficient", "thin", "insufficient"]),
 });

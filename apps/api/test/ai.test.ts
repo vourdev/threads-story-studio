@@ -84,6 +84,22 @@ describe("retry", () => {
     await expect(withRetry(fn, { sleep: async (ms) => void delays.push(ms) })).resolves.toBe("ok");
     expect(delays[0]).toBeGreaterThanOrEqual(7000);
   });
+  it("does not retry timeouts or unavailable providers (they fail over instead)", async () => {
+    for (const kind of ["timeout", "unavailable"] as const) {
+      const fn = vi.fn().mockRejectedValue(new AIError(kind, kind, { provider: "omniroute" }));
+      await expect(withRetry(fn, { attempts: 3, sleep: async () => {} })).rejects.toThrow(kind);
+      expect(fn).toHaveBeenCalledTimes(1);
+    }
+  });
+  it("never sleeps past the request deadline", async () => {
+    const sleep = vi.fn(async () => {});
+    const fn = vi
+      .fn()
+      .mockRejectedValue(new AIError("rate_limited", "slow", { provider: "gemini", retryAfterMs: 30_000 }));
+    await expect(withRetry(fn, { attempts: 3, sleep, deadline: Date.now() + 10_000 })).rejects.toThrow("slow");
+    expect(fn).toHaveBeenCalledTimes(1);
+    expect(sleep).not.toHaveBeenCalled();
+  });
 });
 
 describe("provider helpers", () => {
@@ -150,6 +166,26 @@ describe("orchestrator", () => {
     });
     await expect(runAI({ userId, workflow: "generate", schema, prompt })).rejects.toMatchObject({
       code: "unsupported",
+    });
+    expect(gem.calls).toHaveLength(0);
+  });
+
+  it("fails over immediately when the first provider is unavailable", async () => {
+    const omni = new FakeProvider("omniroute", [new AIError("unavailable", "530", { provider: "omniroute" })]);
+    setProvidersForTests({ omniroute: omni, gemini: new FakeProvider("gemini", ['{"answer":"fallback"}']) });
+    const t = Date.now();
+    const result = await runAI({ userId, workflow: "generate", schema, prompt });
+    expect(result.provider).toBe("gemini");
+    expect(omni.calls).toHaveLength(1);
+    expect(Date.now() - t).toBeLessThan(1_000);
+  });
+
+  it("stops when the request budget is spent", async () => {
+    const slow = new FakeProvider("omniroute", [new AIError("timeout", "slow", { provider: "omniroute" })]);
+    const gem = new FakeProvider("gemini", ['{"answer":"late"}']);
+    setProvidersForTests({ omniroute: slow, gemini: gem });
+    await expect(runAI({ userId, workflow: "generate", schema, prompt, budgetMs: 1_000 })).rejects.toMatchObject({
+      code: "provider_unavailable",
     });
     expect(gem.calls).toHaveLength(0);
   });

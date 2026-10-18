@@ -4,8 +4,9 @@ services:
     runtime: node
     plan: free
     region: singapore
-    buildCommand: npm install
+    buildCommand: npm install && npm run build -w @tss/api
     startCommand: npm run start:api
+    healthCheckPath: /api/health
     envVars:
       - key: NODE_ENV
         value: production

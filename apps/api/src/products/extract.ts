@@ -132,6 +132,6 @@ export async function extractProduct(inputUrl: string, fetchImpl: typeof fetch =
   return {
     ...base,
     message:
-      "Shopee didn't share product details for this link (pages are often protected or rendered by JavaScript). Enter the product information manually — your link is saved.",
+      "Shopee didn't share product details for this link (pages are often protected or rendered by JavaScript). Enter the product information manually. Your link is saved.",
   };
 }

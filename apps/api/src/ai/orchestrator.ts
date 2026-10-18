@@ -35,6 +35,14 @@ export function getProvider(id: AIProviderId): AIProvider {
 
 const CACHEABLE: ReadonlySet<AIWorkflow> = new Set(["analyze", "suggest"]);
 const CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+/** Total time a request may spend across retries, repair and fallback (interactive budget). */
+const BUDGET_MS: Record<AIWorkflow, number> = {
+  analyze: 45_000,
+  suggest: 45_000,
+  evaluate: 45_000,
+  generate: 110_000,
+  refine: 90_000,
+};
 const TIER: Record<AIWorkflow, ModelTier> = {
   analyze: "fast",
   suggest: "fast",
@@ -53,6 +61,8 @@ export type RunOptions<T> = {
   /** Force a provider (e.g. "Test connection"); disables fallback. */
   provider?: AIProviderId;
   skipCache?: boolean;
+  /** Override the per-workflow time budget (ms). */
+  budgetMs?: number;
 };
 
 export type RunResult<T> = {
@@ -136,20 +146,26 @@ async function runWithProvider<T>(
   provider: AIProvider,
   options: RunOptions<T>,
   jsonSchema: Record<string, unknown>,
+  deadline: number,
 ): Promise<{ data: T; model: string; repaired: boolean; inputTokens?: number; outputTokens?: number }> {
   const call = (system: string, prompt: string) =>
     withRetry(
-      () =>
-        provider.complete({
+      () => {
+        const remaining = deadline - Date.now();
+        if (remaining < 2_000) {
+          throw new AIError("timeout", "AI request deadline reached", { provider: provider.id });
+        }
+        return provider.complete({
           system,
           prompt,
           jsonSchema,
           tier: TIER[options.workflow],
           maxOutputTokens: options.maxOutputTokens ?? env.AI_MAX_OUTPUT_TOKENS,
           temperature: options.temperature,
-          signal: AbortSignal.timeout(env.AI_TIMEOUT_MS),
-        }),
-      { attempts: 3 },
+          signal: AbortSignal.timeout(Math.min(env.AI_TIMEOUT_MS, remaining)),
+        });
+      },
+      { deadline },
     );
 
   const first = await call(options.prompt.system, options.prompt.prompt);
@@ -175,7 +191,16 @@ async function runWithProvider<T>(
     };
   }
 
-  // Controlled repair: one more call that sees the validation errors.
+  // Controlled repair: one more call that sees the validation errors (only if there is time left).
+  if (deadline - Date.now() < 10_000) {
+    throw new AIError(
+      "invalid_output",
+      `Model output failed validation: ${formatZodIssues(parsed.error).slice(0, 300)}`,
+      {
+        provider: provider.id,
+      },
+    );
+  }
   const repair = await call(
     `${options.prompt.system}\n\nYour previous reply did not match the required JSON schema. Return corrected JSON only.`,
     `Validation errors:\n${formatZodIssues(parsed.error)}\n\nPrevious reply:\n${first.text.slice(0, 12000)}\n\nOriginal request:\n${options.prompt.prompt}`,
@@ -274,11 +299,13 @@ export async function runAI<T>(options: RunOptions<T>): Promise<RunResult<T>> {
   await assertWithinDailyLimit(options.userId, settings.dailyGenerationLimit);
 
   let lastError: AIError | undefined;
+  const deadline = Date.now() + (options.budgetMs ?? BUDGET_MS[options.workflow]);
   for (const id of order) {
+    if (lastError && deadline - Date.now() < 8_000) break; // no time left for a meaningful fallback
     const provider = providers[id];
     const started = Date.now();
     try {
-      const result = await runWithProvider(provider, options, jsonSchema);
+      const result = await runWithProvider(provider, options, jsonSchema, deadline);
       await recordUsage({
         userId: options.userId,
         provider: id,

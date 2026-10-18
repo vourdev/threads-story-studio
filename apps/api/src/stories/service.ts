@@ -94,12 +94,28 @@ async function productContext(userId: string, story: typeof stories.$inferSelect
 }
 
 export async function getStoryDetail(userId: string, storyId: string) {
-  const story = await getOwnedStory(userId, storyId);
-  const [input, topic, product, { params, lastSuggestions }, variations, pubs] = await Promise.all([
+  // One parallel round trip. Ownership is enforced on the story row before anything is returned,
+  // so the sibling queries for a foreign id are simply discarded.
+  const [[row], input, topic, product, paramRow, variations, pubs] = await Promise.all([
+    db
+      .select({
+        story: stories,
+        product: { id: products.id, name: products.name, imageUrl: products.imageUrl, shopeeUrl: products.shopeeUrl },
+        link: {
+          id: affiliateLinks.id,
+          slug: affiliateLinks.slug,
+          destinationUrl: affiliateLinks.destinationUrl,
+          isVerifiedAffiliate: affiliateLinks.isVerifiedAffiliate,
+        },
+      })
+      .from(stories)
+      .leftJoin(products, eq(products.id, stories.productId))
+      .leftJoin(affiliateLinks, eq(affiliateLinks.id, stories.affiliateLinkId))
+      .where(and(eq(stories.id, storyId), eq(stories.userId, userId), isNull(stories.deletedAt))),
     loadInput(storyId),
     latestAnalysis(storyId, "topic"),
     latestAnalysis(storyId, "product"),
-    loadParams(storyId),
+    db.select().from(storyParameterConfigs).where(eq(storyParameterConfigs.storyId, storyId)),
     db
       .select()
       .from(storyVariations)
@@ -121,40 +137,22 @@ export async function getStoryDetail(userId: string, storyId: string) {
       .orderBy(desc(publications.createdAt))
       .limit(20),
   ]);
-  const [productRow, link] = await Promise.all([
-    story.productId
-      ? db
-          .select({ id: products.id, name: products.name, imageUrl: products.imageUrl, shopeeUrl: products.shopeeUrl })
-          .from(products)
-          .where(eq(products.id, story.productId))
-          .then((r) => r[0] ?? null)
-      : null,
-    story.affiliateLinkId
-      ? db
-          .select({
-            id: affiliateLinks.id,
-            slug: affiliateLinks.slug,
-            destinationUrl: affiliateLinks.destinationUrl,
-            isVerifiedAffiliate: affiliateLinks.isVerifiedAffiliate,
-          })
-          .from(affiliateLinks)
-          .where(eq(affiliateLinks.id, story.affiliateLinkId))
-          .then((r) => r[0] ?? null)
-      : null,
-  ]);
+  if (!row) throw notFound("Story");
+  const config = paramRow[0];
+  if (!config) throw notFound("Story parameters");
   return {
-    story,
+    story: row.story,
     input: { rawInput: input.rawInput, context: input.context, clarifications: input.clarifications },
     analysis: {
       topic: (topic?.payload as TopicAnalysis | undefined) ?? null,
       product: (product?.payload as ProductAnalysis | undefined) ?? null,
     },
-    params,
-    lastSuggestions,
+    params: paramConfigSchema.parse(config.params),
+    lastSuggestions: (config.lastSuggestions as ParamSuggestions | null) ?? null,
     variations,
     publications: pubs,
-    product: productRow,
-    affiliateLink: link,
+    product: row.product,
+    affiliateLink: row.link,
   };
 }
 

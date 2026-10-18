@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 import { Hono } from "hono";
+import { compress } from "hono/compress";
 import { secureHeaders } from "hono/secure-headers";
 
 import { auth, isSignupOpen } from "./auth/auth";
@@ -19,6 +20,16 @@ import { errorSummary, log } from "./security/redact";
 export const app = new Hono();
 
 app.use(secureHeaders());
+// Story payloads (variations, versions) compress ~5-10x; mobile clients decode gzip transparently.
+app.use(compress({ threshold: 1024 }));
+// Response time for every request; slow ones are logged (path only, never bodies).
+app.use(async (c, next) => {
+  const started = performance.now();
+  await next();
+  const ms = Math.round(performance.now() - started);
+  c.header("x-response-time", `${ms}ms`);
+  if (ms > 2_000) log.info("slow request", { method: c.req.method, path: c.req.path, status: c.res.status, ms });
+});
 app.use("*", async (c, next) => {
   await next();
   c.header("cache-control", c.res.headers.get("cache-control") ?? "no-store");
@@ -36,6 +47,8 @@ app.onError((err, c) => {
   return c.json({ error: { code: "internal", message: "Something went wrong. Please try again." } }, 500);
 });
 app.notFound((c) => c.json({ error: { code: "not_found", message: "Not found" } }, 404));
+
+app.get("/healthz", (c) => c.text("ok"));
 
 app.get("/api/health", async (c) => {
   const started = Date.now();

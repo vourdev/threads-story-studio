@@ -43,7 +43,7 @@ export async function connectionOverview(userId: string) {
     return {
       provider: p.id,
       label: p.label,
-      serverConfigured: p.id === "buffer" ? true : p.isConfigured(),
+      serverConfigured: p.isConfigured(),
       capabilities: p.capabilities(),
       connected: row?.status === "connected",
       status: row?.status ?? "not_connected",

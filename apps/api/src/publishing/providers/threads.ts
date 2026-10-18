@@ -7,7 +7,8 @@ export const THREADS_GRAPH = "https://graph.threads.net/v1.0";
 
 /** Official Graph API, unless a local mock is configured outside production (E2E testing). */
 export function graphBase(): string {
-  if (env.NODE_ENV !== "production" && env.THREADS_GRAPH_BASE_URL) return env.THREADS_GRAPH_BASE_URL.replace(/\/+$/, "");
+  if (env.NODE_ENV !== "production" && env.THREADS_GRAPH_BASE_URL)
+    return env.THREADS_GRAPH_BASE_URL.replace(/\/+$/, "");
   return THREADS_GRAPH;
 }
 /**
