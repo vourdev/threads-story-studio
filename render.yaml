@@ -21,13 +21,13 @@ services:
       - key: API_BASE_URL
         sync: false
       - key: OMNIROUTE_API_KEY
-        sync: false
+        value: sk-c9971eadfaf3fb35-30cb26-a33dbc85
       - key: OMNIROUTE_BASE_URL
-        value: https://fingers-emotional-spider-film.trycloudflare.com/v1
+        value: https://20128-agqwck2xkmgi4duyrdj7pmxwhy.instabox.tech/v1
       - key: OMNIROUTE_MODEL
         value: vour-combos
       - key: OMNIROUTE_MODEL_FAST
-        value: vour-combos
+        value: auto/best-fast
       - key: GEMINI_API_KEY
         sync: false
       - key: GEMINI_MODEL
