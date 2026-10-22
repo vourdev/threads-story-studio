@@ -193,6 +193,14 @@ export function analyzeProductPrompt(input: { product: ProductFacts; shopeeUrl: 
   };
 }
 
+export function inferProductPrompt(input: { url: string; canonicalUrl?: string; slugTitle?: string | null }): PromptPair {
+  return {
+    version: PROMPT_VERSION,
+    system: `${BASE_RULES}\n\nTask: Analyze a Shopee product link and its URL slug/keywords to infer the clean product name, category, short description, key features, and user benefits. Output in Indonesian. Never invent false medical or miracle claims. Clean up messy slug text into readable product names.`,
+    prompt: `Shopee URL: ${input.url}\nCanonical URL: ${input.canonicalUrl ?? input.url}\nSlug/Extracted text: ${input.slugTitle ?? "none"}\n\nInfer the product details.`,
+  };
+}
+
 // ---------------------------------------------------------------- parameter suggestions
 
 export function suggestParametersPrompt(input: {

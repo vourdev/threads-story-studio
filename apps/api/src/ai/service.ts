@@ -13,6 +13,7 @@ import {
   chatRevisionPrompt,
   evaluateStoryPrompt,
   generateStoriesPrompt,
+  inferProductPrompt,
   type ProductFacts,
   refineStoryPrompt,
   rewriteSelectionPrompt,
@@ -21,6 +22,7 @@ import {
 import {
   chatRevisionSchema,
   generatedStoriesSchema,
+  inferProductSchema,
   type ProductAnalysis,
   parameterSuggestionsSchema,
   productAnalysisSchema,
@@ -53,6 +55,16 @@ export const ai = {
       schema: productAnalysisSchema,
       prompt: analyzeProductPrompt(input),
       temperature: 0.2,
+    });
+  },
+
+  inferProduct(userId: string, input: Parameters<typeof inferProductPrompt>[0]) {
+    return runAI({
+      userId,
+      workflow: "analyze",
+      schema: inferProductSchema,
+      prompt: inferProductPrompt(input),
+      temperature: 0.3,
     });
   },
 

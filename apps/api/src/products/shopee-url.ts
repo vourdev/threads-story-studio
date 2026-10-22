@@ -45,6 +45,26 @@ export function extractProductIds(url: URL): { shopId: string; itemId: string } 
   return null;
 }
 
+export const BROWSER_UA =
+  "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1";
+
+/** Extracts clean product title from Shopee URL slug if present. */
+export function extractSlugTitle(url: URL): string | null {
+  // https://shopee.co.id/Nama-Produk-Disini-i.12345.67890
+  const slugMatch = url.pathname.match(/^\/([^/]+)-i\.\d+\.\d+/);
+  const target = slugMatch?.[1] ?? (url.pathname.startsWith("/product/") ? null : url.pathname.split("/")[1]);
+  if (target) {
+    const cleaned = decodeURIComponent(target)
+      .replace(/[-_]+/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+    if (cleaned && !/^(product|item|universal-link|buy|cart)\b/i.test(cleaned) && cleaned.length > 2) {
+      return cleaned;
+    }
+  }
+  return null;
+}
+
 export type ResolvedLink = { finalUrl: URL; hops: string[] };
 
 /**
@@ -60,15 +80,32 @@ export async function resolveShopeeUrl(
   const hops: string[] = [current.toString()];
   for (let i = 0; i < maxHops; i++) {
     if (!isShortLinkHost(current.hostname)) return { finalUrl: current, hops };
-    const response = await fetchImpl(current, {
-      method: "GET",
-      redirect: "manual",
-      headers: { "user-agent": "ThreadsStoryStudio/1.0 (+link preview)" },
-      signal: AbortSignal.timeout(8000),
-    });
-    const location = response.headers.get("location");
-    await response.body?.cancel().catch(() => undefined);
-    if (response.status < 300 || response.status >= 400 || !location) return { finalUrl: current, hops };
+    let location: string | null = null;
+    try {
+      const response = await fetchImpl(current, {
+        method: "GET",
+        redirect: "manual",
+        headers: {
+          "user-agent": BROWSER_UA,
+          accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+          "accept-language": "id-ID,id;q=0.9,en-US;q=0.8,en;q=0.7",
+        },
+        signal: AbortSignal.timeout(8000),
+      });
+      location = response.headers.get("location");
+      if (!location && response.ok) {
+        const text = (await response.text()).slice(0, 50_000);
+        const metaRefresh = text.match(/<meta[^>]+http-equiv=["']refresh["'][^>]+content=["'][^"']*url=([^"'>\s]+)/i);
+        const jsRedirect = text.match(/(?:window\.)?location(?:\.href)?\s*=\s*["']([^"']+)["']/i);
+        const canonical = text.match(/<link[^>]+rel=["']canonical["'][^>]+href=["']([^"']+)["']/i);
+        location = metaRefresh?.[1] ?? jsRedirect?.[1] ?? canonical?.[1] ?? null;
+      } else {
+        await response.body?.cancel().catch(() => undefined);
+      }
+    } catch {
+      break;
+    }
+    if (!location) break;
     const next = new URL(location, current);
     if (next.protocol !== "https:" || !isShopeeHost(next.hostname)) {
       throw new AppError("bad_request", "This link redirects outside Shopee, so it can't be used.");

@@ -70,7 +70,7 @@ export const publishingRoutes = new Hono<AuthedEnv>()
   })
   .delete("/publications/:id", validate("param", idParam), async (c) => {
     const publicationId = c.req.valid("param").id;
-    await publishing.cancelPublication(c.get("user").id, publicationId);
+    await publishing.deletePublication(c.get("user").id, publicationId);
     return c.json({ ok: true });
   })
   /**

@@ -1,7 +1,7 @@
 import { integrations } from "../env";
 import { log } from "../security/redact";
 import { fetchProductOffer } from "./shopee-affiliate-api";
-import { extractProductIds, resolveShopeeUrl } from "./shopee-url";
+import { BROWSER_UA, extractProductIds, resolveShopeeUrl } from "./shopee-url";
 
 export type ExtractedProduct = {
   shopeeUrl: string;
@@ -100,26 +100,37 @@ export async function extractProduct(inputUrl: string, fetchImpl: typeof fetch =
 
   try {
     const response = await fetchImpl(resolved.finalUrl, {
-      headers: { "user-agent": "ThreadsStoryStudio/1.0 (+link preview)", accept: "text/html" },
+      headers: {
+        "user-agent": BROWSER_UA,
+        accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "accept-language": "id-ID,id;q=0.9,en-US;q=0.8,en;q=0.7",
+      },
       redirect: "manual",
       signal: AbortSignal.timeout(8000),
     });
     if (response.ok && (response.headers.get("content-type") ?? "").includes("text/html")) {
       const html = (await response.text()).slice(0, 500_000);
-      const title = meta(html, "og:title");
+      const title =
+        meta(html, "og:title") ??
+        html.match(/<title[^>]*>([^<]+)<\/title>/i)?.[1] ??
+        html.match(/"name":\s*"([^"]+)"/i)?.[1];
       const genericTitle = !title || /^shopee( indonesia)?\b/i.test(title) || /login|captcha|verify/i.test(title);
-      if (!genericTitle) {
+      if (!genericTitle && title) {
         const description = meta(html, "og:description") ?? meta(html, "description");
         const image = meta(html, "og:image");
+        const cleanedName = title
+          .replace(/\s*\|\s*Shopee.*$/i, "")
+          .replace(/^Jual\s+/i, "")
+          .trim();
         return {
           ...base,
-          name: title.replace(/\s*\|\s*Shopee.*$/i, "").trim(),
+          name: cleanedName || base.name,
           description,
           imageUrl: image,
           dataSource: "og_meta",
           verifiedFields: ["name", ...(description ? ["description"] : []), ...(image ? ["image"] : [])],
           status: "partial",
-          message: "Read the product title from the page. Price and benefits must be added manually.",
+          message: "Read the product title from the page.",
         };
       }
     } else {

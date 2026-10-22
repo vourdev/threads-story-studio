@@ -1,6 +1,7 @@
 import type { ProductInput } from "@tss/shared";
 import { and, count, desc, eq, isNull } from "drizzle-orm";
 
+import { ai } from "../ai/service";
 import { track } from "../analytics/events";
 import { db } from "../db/client";
 import { affiliateLinks, products, stories } from "../db/schema";
@@ -10,11 +11,44 @@ import { AppError } from "../security/errors";
 import { extractProduct } from "./extract";
 import { getOwnedProduct } from "./facts";
 import { generateShortLink } from "./shopee-affiliate-api";
-import { isShopeeHost, parseShopeeUrl } from "./shopee-url";
+import { extractSlugTitle, isShopeeHost, parseShopeeUrl } from "./shopee-url";
 
 /** Imports a product from a Shopee link. Extraction failure still creates the product for manual completion. */
 export async function importProduct(userId: string, url: string) {
   const extracted = await extractProduct(url);
+  const slugTitle = extracted.name ?? extractSlugTitle(parseShopeeUrl(extracted.canonicalUrl || url));
+  let name = slugTitle;
+  let category = extracted.category;
+  let description = extracted.description;
+  let features = extracted.verifiedFields ?? [];
+  let benefits: string[] = [];
+  let status = extracted.status;
+  let message = extracted.message;
+  let dataSource = extracted.dataSource;
+
+  // If page metadata didn't provide full details, use AI to infer from the URL and slug.
+  if (!name || status !== "success") {
+    try {
+      const aiInferred = await ai.inferProduct(userId, {
+        url,
+        canonicalUrl: extracted.canonicalUrl,
+        slugTitle,
+      });
+      if (aiInferred.data.name) {
+        name = aiInferred.data.name;
+        category = aiInferred.data.category || category;
+        description = aiInferred.data.description || description;
+        features = aiInferred.data.features?.length ? aiInferred.data.features : features;
+        benefits = aiInferred.data.benefits?.length ? aiInferred.data.benefits : benefits;
+        status = "success";
+        message = "AI identified product details from the link.";
+        dataSource = "og_meta";
+      }
+    } catch {
+      // Keep best-effort extraction if AI call is unavailable
+    }
+  }
+
   const [row] = await db
     .insert(products)
     .values({
@@ -23,23 +57,25 @@ export async function importProduct(userId: string, url: string) {
       canonicalUrl: extracted.canonicalUrl,
       shopId: extracted.shopId,
       itemId: extracted.itemId,
-      name: extracted.name ?? "Untitled product",
-      description: extracted.description,
+      name: name ?? "Shopee Product",
+      description,
       imageUrl: extracted.imageUrl,
       priceMin: extracted.priceMin,
       priceMax: extracted.priceMax,
       currency: extracted.currency,
-      category: extracted.category,
-      dataSource: extracted.dataSource,
+      category,
+      features,
+      benefits,
+      dataSource,
       verifiedFields: extracted.verifiedFields,
-      extractionStatus: extracted.status,
-      extractionMessage: extracted.message,
+      extractionStatus: status,
+      extractionMessage: message,
     })
     .returning();
   if (!row) throw new AppError("internal", "Could not save product");
   return {
     product: row,
-    extraction: { status: extracted.status, message: extracted.message, source: extracted.dataSource },
+    extraction: { status, message, source: dataSource },
   };
 }
 
@@ -135,6 +171,15 @@ export async function getProductDetail(userId: string, productId: string) {
 export async function archiveProduct(userId: string, productId: string) {
   await getOwnedProduct(userId, productId);
   await db.update(products).set({ archivedAt: new Date() }).where(eq(products.id, productId));
+}
+
+export async function deleteProduct(userId: string, productId: string) {
+  await getOwnedProduct(userId, productId);
+  await db.transaction(async (tx) => {
+    await tx.update(stories).set({ productId: null }).where(eq(stories.productId, productId));
+    await tx.delete(affiliateLinks).where(eq(affiliateLinks.productId, productId));
+    await tx.delete(products).where(eq(products.id, productId));
+  });
 }
 
 /** Destination must be an https Shopee URL. It is stored exactly as given (tracking params intact). */

@@ -42,6 +42,15 @@ export const productAnalysisSchema = z.object({
 });
 export type ProductAnalysis = z.infer<typeof productAnalysisSchema>;
 
+export const inferProductSchema = z.object({
+  name: text(250).describe("Clean product name in Indonesian"),
+  category: text(100).describe("Product category, e.g. Skincare, Fashion, etc."),
+  description: text(1000).describe("Short product overview"),
+  features: list(10).describe("Key product features"),
+  benefits: list(8).describe("Key user benefits"),
+});
+export type InferProduct = z.infer<typeof inferProductSchema>;
+
 export const parameterSuggestionsSchema = z.object({
   suggestions: z
     .array(

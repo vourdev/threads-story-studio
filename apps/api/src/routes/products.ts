@@ -32,7 +32,7 @@ export const productRoutes = new Hono<AuthedEnv>()
     return c.json({ product });
   })
   .delete("/:id", validate("param", idParam), async (c) => {
-    await productsService.archiveProduct(c.get("user").id, c.req.valid("param").id);
+    await productsService.deleteProduct(c.get("user").id, c.req.valid("param").id);
     return c.json({ ok: true });
   })
   .post("/:id/links", validate("param", idParam), validate("json", affiliateLinkInput), async (c) => {

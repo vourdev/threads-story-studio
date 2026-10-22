@@ -151,6 +151,17 @@ export async function cancelPublication(userId: string, publicationId: string) {
   return { ok: true };
 }
 
+export async function deletePublication(userId: string, publicationId: string) {
+  const publication = await getOwnedPublication(userId, publicationId);
+  await db.transaction(async (tx) => {
+    await tx.delete(publishingJobs).where(eq(publishingJobs.publicationId, publicationId));
+    await tx.delete(publishingAttempts).where(eq(publishingAttempts.publicationId, publicationId));
+    await tx.delete(publications).where(eq(publications.id, publicationId));
+    await syncStoryStatus(publication.storyId, tx);
+  });
+  return { ok: true };
+}
+
 export async function getOwnedPublication(userId: string, publicationId: string) {
   const [row] = await db
     .select()
